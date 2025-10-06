@@ -1,17 +1,18 @@
--- Databricks notebook source
-GRANT USE CATALOG ON CATALOG demo_catalog TO `Dvelopers`;
-GRANT USE CATALOG ON CATALOG demo_catalog TO `Admins`;
+-- Usar el catálogo
+USE CATALOG catalog_prod;
 
--- COMMAND ----------
+-- Permisos en el catálogo
+GRANT USAGE ON CATALOG catalog_prod
+TO bi_power_users;
 
-GRANT USE SCHEMA ON SCHEMA catalog_prod.bronze TO `Dvelopers`;
-GRANT CREATE ON SCHEMA catalog_prod.bronze TO `Dvelopers`;
+-- Permisos en el schema
+GRANT USAGE ON SCHEMA catalog_prod.golden
+TO bi_power_users;
 
--- COMMAND ----------
+-- Permisos en todas las tablas del schema
+GRANT SELECT ON SCHEMA catalog_prod.golden
+TO bi_power_users;
 
-GRANT SELECT ON TABLE demo_catalog.ventas_2025.clientes_ext TO `Dvelopers`;
-GRANT SELECT ON TABLE demo_catalog.ventas_2025.equipos_ext TO `Dvelopers`;
-
--- GRANT CREATE ON CATALOG demo_catalog TO `Dvelopers`;
--- GRANT SELECT ON CATALOG demo_catalog TO `Dvelopers`;
--- GRANT ALL PRIVILEGES ON CATALOG demo_catalog TO `Admins`;
+-- Verificar permisos
+SHOW GRANTS ON CATALOG catalog_prod;
+SHOW GRANTS ON SCHEMA catalog_prod.golden;

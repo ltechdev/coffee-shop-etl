@@ -1,88 +1,35 @@
--- Databricks notebook source
--- MAGIC %python
--- MAGIC dbutils.widgets.removeAll()
-
--- COMMAND ----------
-
--- MAGIC %python
--- MAGIC dbutils.widgets.text("storage","abfss://lhcldata@adlssmartdata1504.dfs.core.windows.net")
--- MAGIC dbutils.widgets.text("catalogo","catalog_prod")
-
--- COMMAND ----------
-
--- MAGIC %python
--- MAGIC ruta = dbutils.widgets.get("storage")
-
--- COMMAND ----------
-
--- MAGIC %md
--- MAGIC ### Eliminacion tablas Bronze
-
--- COMMAND ----------
-
--- DROP TABLES
+-- =========================
+-- 1. Eliminar tablas Bronze
+-- =========================
 DROP TABLE IF EXISTS catalog_prod.bronze.VENTA_CAFE;
 
--- COMMAND ----------
+-- =========================
+-- 2. Eliminar tablas Silver
+-- =========================
+DROP TABLE IF EXISTS catalog_prod.silver.DIM_CAFE;
+DROP TABLE IF EXISTS catalog_prod.silver.DIM_PAGO;
+DROP TABLE IF EXISTS catalog_prod.silver.DIM_FECHA;
+DROP TABLE IF EXISTS catalog_prod.silver.HECHO_VENTAS;
 
--- MAGIC %python
--- MAGIC ## REMOVE DATA (Bronze)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/CLIENTES", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/VENTAS", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/PRODUCTOS", True)
+-- =========================
+-- 3. Eliminar tablas Golden
+-- =========================
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_VENTAS_DIARIAS;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_VENTAS_POR_CAFE;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_VENTAS_POR_PAGO;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_VENTAS_POR_DIA_SEMANA;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_VENTAS_POR_FRANJA_HORARIA;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_TOP_PRODUCTOS;
+DROP TABLE IF EXISTS catalog_prod.golden.AGG_RESUMEN_MENSUAL;
 
--- COMMAND ----------
+-- =========================
+-- 4. Eliminar esquemas
+-- =========================
+DROP SCHEMA IF EXISTS catalog_prod.bronze CASCADE;
+DROP SCHEMA IF EXISTS catalog_prod.silver CASCADE;
+DROP SCHEMA IF EXISTS catalog_prod.golden CASCADE;
 
--- MAGIC %md
--- MAGIC ### Eliminacion tablas Silver
-
--- COMMAND ----------
-
--- DROP TABLES
-DROP TABLE IF EXISTS catalog_prod.silver.VENTAS_LIMPIAS;
-DROP TABLE IF EXISTS catalog_prod.silver.CLIENTES_VALIDOS;
-DROP TABLE IF EXISTS catalog_prod.silver.DETALLE_PRODUCTOS;
-
--- COMMAND ----------
-
--- MAGIC %python
--- MAGIC # REMOVE DATA (Silver)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/VENTAS_LIMPIAS", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/CLIENTES_VALIDOS", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/DETALLE_PRODUCTOS", True)
-
--- COMMAND ----------
-
--- MAGIC %md
--- MAGIC ### Eliminacion tablas Golden
-
--- COMMAND ----------
-
--- DROP TABLES
-DROP TABLE IF EXISTS catalog_prod.golden.KPIS_VENTAS;
-DROP TABLE IF EXISTS catalog_prod.golden.SEGMENTOS_CLIENTES;
-
--- COMMAND ----------
-
--- MAGIC %python
--- MAGIC # REMOVE DATA (Golden)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/KPIS_VENTAS", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/SEGMENTOS_CLIENTES", True)
-
--- COMMAND ----------
-
--- MAGIC %md
--- MAGIC ### Eliminacion tablas Exploratory
-
--- COMMAND ----------
-
--- DROP TABLES
-DROP TABLE IF EXISTS catalog_prod.exploratory.EXPERIMENTOS;
-DROP TABLE IF EXISTS catalog_prod.exploratory.PRUEBAS_MODELOS_EXT;
-
--- COMMAND ----------
-
--- MAGIC %python
--- MAGIC # REMOVE DATA (Exploratory)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/EXPERIMENTOS", True)
--- MAGIC dbutils.fs.rm(f"{ruta}/tablas/PRUEBAS_MODELOS_EXT", True)
+-- =========================
+-- 5. Eliminar catálogo
+-- =========================
+DROP CATALOG IF EXISTS catalog_prod CASCADE;

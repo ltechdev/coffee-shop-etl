@@ -172,21 +172,20 @@ df_ventas_franja.write.mode("overwrite").saveAsTable(f"{catalogo}.{esquema_desti
 
 df_productos_periodo = (
     df_hecho_ventas.alias("h")
-    .join(df_dim_cafe.alias("c"), F.col("h.id_cafe") == F.col("c.id_cafe"), "inner")
-    .join(df_dim_fecha.alias("f"), F.col("h.fecha") == F.col("f.fecha"), "inner")
+    .join(df_dim_cafe.alias("c"), col("h.id_cafe") == col("c.id_cafe"), "inner")
+    .join(df_dim_fecha.alias("f"), col("h.fecha") == col("f.fecha"), "inner")
     .groupBy(
-        F.col("f.anio"),
-        F.col("f.mes"),
-        F.col("h.id_cafe"),
-        F.col("c.coffee_name"),
-        F.col("c.categoria")
+        col("f.anio"),
+        col("f.mes"),
+        col("h.id_cafe"),
+        col("c.coffee_name"),
+        col("c.categoria")
     )
     .agg(
-        F.sum("h.monto_total").alias("ingresos_totales"),
-        F.sum("h.cantidad").alias("cantidad_total")
+        sum("h.monto_total").alias("ingresos_totales"),
+        sum("h.cantidad").alias("cantidad_total")
     )
 )
-
 
 # COMMAND ----------
 
@@ -194,38 +193,37 @@ df_top_productos = (
     df_productos_periodo
     .groupBy("anio", "mes")
     .agg(
-        F.collect_list(
-            F.struct(
-                F.col("ingresos_totales"),
-                F.col("id_cafe"),
-                F.col("coffee_name"),
-                F.col("categoria"),
-                F.col("cantidad_total")
+        collect_list(
+            struct(
+                col("ingresos_totales"),
+                col("id_cafe"),
+                col("coffee_name"),
+                col("categoria"),
+                col("cantidad_total")
             )
         ).alias("productos")
     )
-    .withColumn("productos", F.expr("slice(array_sort(productos, (left, right) -> case when left.ingresos_totales > right.ingresos_totales then -1 when left.ingresos_totales < right.ingresos_totales then 1 else 0 end), 1, 10)"))
-    .withColumn("periodo_analisis", F.lit("mensual"))
-    .withColumn("fecha_inicio", F.expr("make_date(anio, mes, 1)"))
-    .withColumn("fecha_fin", F.expr("last_day(make_date(anio, mes, 1))"))
-    .withColumn("ultima_actualizacion", F.current_timestamp())
+    .withColumn("productos", expr("slice(array_sort(productos, (left, right) -> case when left.ingresos_totales > right.ingresos_totales then -1 when left.ingresos_totales < right.ingresos_totales then 1 else 0 end), 1, 10)"))
+    .withColumn("periodo_analisis", lit("mensual"))
+    .withColumn("fecha_inicio", expr("make_date(anio, mes, 1)"))
+    .withColumn("fecha_fin", expr("last_day(make_date(anio, mes, 1))"))
+    .withColumn("ultima_actualizacion", current_timestamp())
 )
-
 
 # COMMAND ----------
 
 df_top_productos = (
     df_top_productos
-    .withColumn("producto", F.explode("productos"))
+    .withColumn("producto", explode("productos"))
     .select(
         "periodo_analisis",
         "fecha_inicio",
         "fecha_fin",
-        F.col("producto.id_cafe"),
-        F.col("producto.coffee_name"),
-        F.col("producto.categoria"),
-        F.col("producto.ingresos_totales"),
-        F.col("producto.cantidad_total"),
+        col("producto.id_cafe"),
+        col("producto.coffee_name"),
+        col("producto.categoria"),
+        col("producto.ingresos_totales"),
+        col("producto.cantidad_total"),
         "ultima_actualizacion"
     )
 )
@@ -243,12 +241,12 @@ df_top_productos.write.mode("overwrite").saveAsTable(f"{catalogo}.{esquema_desti
 
 df_resumen_base = (
     df_hecho_ventas.alias("h")
-    .join(df_dim_fecha.alias("f"), F.col("h.fecha") == F.col("f.fecha"), "inner")
+    .join(df_dim_fecha.alias("f"), col("h.fecha") == col("f.fecha"), "inner")
     .groupBy("f.anio", "f.mes", "f.Month_name")
     .agg(
-        F.sum("h.monto_total").alias("ingresos_totales"),
-        F.count("*").alias("total_transacciones"),
-        F.round(F.avg("h.monto_total"), 2).alias("ticket_promedio")
+        sum("h.monto_total").alias("ingresos_totales"),
+        count("*").alias("total_transacciones"),
+        round(avg("h.monto_total"), 2).alias("ticket_promedio")
     )
 )
 
@@ -256,45 +254,47 @@ df_resumen_base = (
 
 df_cafe_top = (
     df_hecho_ventas.alias("h")
-    .join(df_dim_fecha.alias("f"), F.col("h.fecha") == F.col("f.fecha"), "inner")
-    .join(df_dim_cafe.alias("c"), F.col("h.id_cafe") == F.col("c.id_cafe"), "inner")
+    .join(df_dim_fecha.alias("f"), col("h.fecha") == col("f.fecha"), "inner")
+    .join(df_dim_cafe.alias("c"), col("h.id_cafe") == col("c.id_cafe"), "inner")
     .groupBy("f.anio", "f.mes", "c.coffee_name")
-    .agg(F.sum("h.cantidad").alias("cantidad"))
+    .agg(sum("h.cantidad").alias("cantidad"))
 )
 
 df_cafe_mes = (
     df_cafe_top
     .groupBy("anio", "mes")
-    .agg(F.first(F.col("coffee_name")).alias("cafe_mas_vendido"))
+    .agg(first(col("coffee_name")).alias("cafe_mas_vendido"))
 )
 
 # COMMAND ----------
 
 df_pago_top = (
     df_hecho_ventas.alias("h")
-    .join(df_dim_fecha.alias("f"), F.col("h.fecha") == F.col("f.fecha"), "inner")
-    .join(df_dim_pago.alias("p"), F.col("h.id_pago") == F.col("p.id_pago"), "inner")
+    .join(df_dim_fecha.alias("f"), col("h.fecha") == col("f.fecha"), "inner")
+    .join(df_dim_pago.alias("p"), col("h.id_pago") == col("p.id_pago"), "inner")
     .groupBy("f.anio", "f.mes", "p.cash_type")
-    .agg(F.count("*").alias("transacciones"))
+    .agg(count("*").alias("transacciones"))
 )
 
 df_pago_mes = (
     df_pago_top
     .groupBy("anio", "mes")
-    .agg(F.first(F.col("cash_type")).alias("metodo_pago_principal"))
+    .agg(first(col("cash_type")).alias("metodo_pago_principal"))
 )
+
 # COMMAND ----------
 
 df_dia_top = (
     df_hecho_ventas.alias("h")
-    .join(df_dim_fecha.alias("f"), F.col("h.fecha") == F.col("f.fecha"), "inner")
+    .join(df_dim_fecha.alias("f"), col("h.fecha") == col("f.fecha"), "inner")
     .groupBy("f.anio", "f.mes", "f.Weekday")
-    .agg(F.sum("h.monto_total").alias("ingresos"))
+    .agg(sum("h.monto_total").alias("ingresos"))
 )
+
 df_dia_mes = (
     df_dia_top
     .groupBy("anio", "mes")
-    .agg(F.first(F.col("Weekday")).alias("dia_semana_mas_fuerte"))
+    .agg(first(col("Weekday")).alias("dia_semana_mas_fuerte"))
 )
 
 # COMMAND ----------
@@ -304,7 +304,7 @@ df_resumen_mensual = (
     .join(df_cafe_mes, ["anio", "mes"], "left")
     .join(df_pago_mes, ["anio", "mes"], "left")
     .join(df_dia_mes, ["anio", "mes"], "left")
-    .withColumn("ultima_actualizacion", F.current_timestamp())
+    .withColumn("ultima_actualizacion", current_timestamp())
     .orderBy("anio", "mes")
 )
 

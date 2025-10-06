@@ -1,0 +1,396 @@
+name: Coffee Shop ETL - Databricks Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'proceso/**'
+  workflow_dispatch:
+
+env:
+  WORKFLOW_NAME: "CoffeeShopWFDeploy"
+  PRODUCTION_PATH: "/production/coffee_shop"
+  STORAGE_LOCATION: "abfss://coffeeshop@adlsdevluis25.dfs.core.windows.net"
+  CATALOG_NAME: "catalog_dev"
+
+jobs:
+  deploy-and-execute:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: sudo apt-get update && sudo apt-get install -y jq curl
+    
+    - name: Deploy Notebooks to Databricks
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        
+        echo "Creando directorio de producción..."
+        curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"path\":\"$PRODUCTION_PATH\"}" \
+          "$DEST_HOST/api/2.0/workspace/mkdirs"
+        
+        echo "Desplegando notebooks..."
+        
+        # DDL SQL
+        echo "Desplegando 1-Ddls-Medallion.sql"
+        curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: multipart/form-data" \
+          -F "path=$PRODUCTION_PATH/1-Ddls-Medallion" \
+          -F "format=SOURCE" \
+          -F "language=SQL" \
+          -F "overwrite=true" \
+          -F "content=@proceso/1-Ddls-Medallion.sql" \
+          "$DEST_HOST/api/2.0/workspace/import"
+        
+        # Ingestion Python
+        echo "Desplegando 2-Ingest-Coffee-Shop-Data.py"
+        curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: multipart/form-data" \
+          -F "path=$PRODUCTION_PATH/2-Ingest-Coffee-Shop-Data" \
+          -F "format=SOURCE" \
+          -F "language=PYTHON" \
+          -F "overwrite=true" \
+          -F "content=@proceso/2-Ingest-Coffee-Shop-Data.py" \
+          "$DEST_HOST/api/2.0/workspace/import"
+        
+        # Transform Python
+        echo "Desplegando 3-Transform.py"
+        curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: multipart/form-data" \
+          -F "path=$PRODUCTION_PATH/3-Transform" \
+          -F "format=SOURCE" \
+          -F "language=PYTHON" \
+          -F "overwrite=true" \
+          -F "content=@proceso/3-Transform.py" \
+          "$DEST_HOST/api/2.0/workspace/import"
+        
+        # Load Python
+        echo "Desplegando 4-Load.py"
+        curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: multipart/form-data" \
+          -F "path=$PRODUCTION_PATH/4-Load" \
+          -F "format=SOURCE" \
+          -F "language=PYTHON" \
+          -F "overwrite=true" \
+          -F "content=@proceso/4-Load.py" \
+          "$DEST_HOST/api/2.0/workspace/import"
+        
+        echo "Notebooks desplegados exitosamente"
+    
+    - name: Check and Delete Existing Workflow
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        
+        echo "Verificando workflow existente: $WORKFLOW_NAME"
+        
+        workflows=$(curl -s -X GET \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          "$DEST_HOST/api/2.1/jobs/list")
+        
+        job_id=$(echo "$workflows" | jq -r --arg name "$WORKFLOW_NAME" \
+          '.jobs[]? | select(.settings.name == $name) | .job_id')
+        
+        if [ "$job_id" != "" ] && [ "$job_id" != "null" ]; then
+          echo "Eliminando workflow existente con ID: $job_id"
+          curl -s -X POST \
+            -H "Authorization: Bearer $DEST_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"job_id\": $job_id}" \
+            "$DEST_HOST/api/2.1/jobs/delete"
+          echo "Workflow eliminado"
+        else
+          echo "No existe workflow previo"
+        fi
+    
+    - name: Get Cluster ID
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        CLUSTER_NAME="CLUSTER COFFEE SHOP"
+        
+        echo "Buscando cluster: $CLUSTER_NAME"
+        
+        clusters=$(curl -s -X GET \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          "$DEST_HOST/api/2.0/clusters/list")
+        
+        cluster_id=$(echo "$clusters" | jq -r --arg name "$CLUSTER_NAME" \
+          '.clusters[]? | select(.cluster_name == $name) | .cluster_id')
+        
+        if [ "$cluster_id" != "" ] && [ "$cluster_id" != "null" ]; then
+          echo "Cluster encontrado con ID: $cluster_id"
+          echo "CLUSTER_ID=$cluster_id" >> $GITHUB_ENV
+        else
+          echo "ERROR: Cluster '$CLUSTER_NAME' no encontrado"
+          echo "Clusters disponibles:"
+          echo "$clusters" | jq -r '.clusters[]? | .cluster_name'
+          exit 1
+        fi
+    
+    - name: Create Workflow
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        CLUSTER_ID="${{ env.CLUSTER_ID }}"
+        
+        echo "Creando workflow: $WORKFLOW_NAME"
+        
+        cat > workflow_config.json << EOF
+        {
+          "name": "$WORKFLOW_NAME",
+          "format": "MULTI_TASK",
+          "tasks": [
+            {
+              "task_key": "create_tables_ddl",
+              "description": "Crear estructura Medallion (Bronze/Silver/Gold)",
+              "notebook_task": {
+                "notebook_path": "$PRODUCTION_PATH/1-Ddls-Medallion",
+                "source": "WORKSPACE",
+                "base_parameters": {
+                  "storage": "$STORAGE_LOCATION",
+                  "catalogo": "$CATALOG_NAME"
+                }
+              },
+              "existing_cluster_id": "$CLUSTER_ID",
+              "timeout_seconds": 1800,
+              "max_retries": 1
+            },
+            {
+              "task_key": "ingest_bronze",
+              "description": "Ingestar datos crudos a Bronze",
+              "notebook_task": {
+                "notebook_path": "$PRODUCTION_PATH/2-Ingest-Coffee-Shop-Data",
+                "source": "WORKSPACE",
+                "base_parameters": {
+                  "catalogo": "$CATALOG_NAME",
+                  "esquema": "bronze"
+                }
+              },
+              "existing_cluster_id": "$CLUSTER_ID",
+              "timeout_seconds": 3600,
+              "max_retries": 2,
+              "depends_on": [
+                {
+                  "task_key": "create_tables_ddl"
+                }
+              ]
+            },
+            {
+              "task_key": "transform_silver",
+              "description": "Transformar Bronze a Silver con dimensiones",
+              "notebook_task": {
+                "notebook_path": "$PRODUCTION_PATH/3-Transform",
+                "source": "WORKSPACE",
+                "base_parameters": {
+                  "catalogo": "$CATALOG_NAME",
+                  "esquema_origen": "bronze",
+                  "esquema_destino": "silver"
+                }
+              },
+              "existing_cluster_id": "$CLUSTER_ID",
+              "timeout_seconds": 3600,
+              "max_retries": 2,
+              "depends_on": [
+                {
+                  "task_key": "ingest_bronze"
+                }
+              ]
+            },
+            {
+              "task_key": "aggregate_gold",
+              "description": "Crear agregados Gold para análisis",
+              "notebook_task": {
+                "notebook_path": "$PRODUCTION_PATH/4-Load",
+                "source": "WORKSPACE",
+                "base_parameters": {
+                  "catalogo": "$CATALOG_NAME",
+                  "esquema_origen": "silver",
+                  "esquema_destino": "gold"
+                }
+              },
+              "existing_cluster_id": "$CLUSTER_ID",
+              "timeout_seconds": 3600,
+              "max_retries": 2,
+              "depends_on": [
+                {
+                  "task_key": "transform_silver"
+                }
+              ]
+            }
+          ],
+          "schedule": {
+            "quartz_cron_expression": "0 0 10 * * ?",
+            "timezone_id": "America/Lima",
+            "pause_status": "UNPAUSED"
+          },
+          "email_notifications": {
+            "on_failure": ["lchaponant@gmail.com"],
+            "on_success": [],
+            "no_alert_for_skipped_runs": false
+          },
+          "timeout_seconds": 14400,
+          "max_concurrent_runs": 1,
+          "tags": {
+            "project": "coffee_shop_etl",
+            "environment": "production",
+            "pipeline": "medallion_architecture",
+            "deployed_by": "github_actions"
+          }
+        }
+        EOF
+        
+        response=$(curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d @workflow_config.json \
+          "$DEST_HOST/api/2.1/jobs/create")
+        
+        job_id=$(echo "$response" | jq -r '.job_id')
+        
+        if [ "$job_id" != "" ] && [ "$job_id" != "null" ]; then
+          echo "Workflow creado exitosamente con ID: $job_id"
+          echo "WORKFLOW_JOB_ID=$job_id" >> $GITHUB_ENV
+        else
+          echo "ERROR al crear workflow"
+          echo "Response: $response"
+          exit 1
+        fi
+    
+    - name: Execute Workflow
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        JOB_ID="${{ env.WORKFLOW_JOB_ID }}"
+        
+        echo "Ejecutando workflow ID: $JOB_ID"
+        
+        run_response=$(curl -s -X POST \
+          -H "Authorization: Bearer $DEST_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{\"job_id\": $JOB_ID}" \
+          "$DEST_HOST/api/2.1/jobs/run-now")
+        
+        run_id=$(echo "$run_response" | jq -r '.run_id')
+        
+        if [ "$run_id" != "" ] && [ "$run_id" != "null" ]; then
+          echo "Pipeline iniciado - Run ID: $run_id"
+          echo "WORKFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
+          echo "URL: $DEST_HOST/#job/$JOB_ID/run/$run_id"
+        else
+          echo "ERROR al ejecutar workflow"
+          echo "Response: $run_response"
+          exit 1
+        fi
+    
+    - name: Monitor Workflow Execution
+      run: |
+        DEST_HOST=${{ secrets.DATABRICKS_HOST }}
+        DEST_TOKEN=${{ secrets.DATABRICKS_TOKEN }}
+        RUN_ID="${{ env.WORKFLOW_RUN_ID }}"
+        JOB_ID="${{ env.WORKFLOW_JOB_ID }}"
+        
+        echo "Monitoreando ejecución del pipeline..."
+        echo "Run ID: $RUN_ID"
+        
+        max_wait=1200
+        elapsed=0
+        interval=30
+        
+        while [ $elapsed -lt $max_wait ]; do
+          status=$(curl -s -X GET \
+            -H "Authorization: Bearer $DEST_TOKEN" \
+            "$DEST_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID")
+          
+          state=$(echo "$status" | jq -r '.state.life_cycle_state')
+          result=$(echo "$status" | jq -r '.state.result_state // "RUNNING"')
+          
+          echo "Estado: $state ($result) - Tiempo: ${elapsed}s"
+          
+          echo "$status" | jq -r '.tasks[]? | "  > " + .task_key + ": " + .state.life_cycle_state + " (" + (.state.result_state // "RUNNING") + ")"'
+          
+          if [ "$state" = "TERMINATED" ]; then
+            if [ "$result" = "SUCCESS" ]; then
+              echo ""
+              echo "========================================"
+              echo "PIPELINE COMPLETADO EXITOSAMENTE"
+              echo "========================================"
+              echo ""
+              echo "Resumen de ejecución:"
+              echo "$status" | jq -r '.tasks[]? | "  - " + .task_key + ": SUCCESS"'
+              
+              start=$(echo "$status" | jq -r '.start_time')
+              end=$(echo "$status" | jq -r '.end_time')
+              if [ "$start" != "null" ] && [ "$end" != "null" ]; then
+                duration=$((($end - $start) / 1000))
+                minutes=$((duration / 60))
+                seconds=$((duration % 60))
+                echo ""
+                echo "Duración total: ${minutes}m ${seconds}s"
+              fi
+              
+              exit 0
+            else
+              echo ""
+              echo "========================================"
+              echo "PIPELINE FALLÓ"
+              echo "========================================"
+              echo ""
+              echo "$status" | jq -r '.tasks[]? | "  - " + .task_key + ": " + (.state.result_state // "UNKNOWN")'
+              echo ""
+              echo "Revisa los logs en: $DEST_HOST/#job/$JOB_ID/run/$RUN_ID"
+              exit 1
+            fi
+          fi
+          
+          if [ "$state" = "INTERNAL_ERROR" ] || [ "$state" = "SKIPPED" ]; then
+            echo "ERROR: Workflow terminó con estado: $state"
+            exit 1
+          fi
+          
+          sleep $interval
+          elapsed=$((elapsed + interval))
+        done
+        
+        echo ""
+        echo "Timeout: El pipeline continúa ejecutándose"
+        echo "Monitorea en: $DEST_HOST/#job/$JOB_ID/run/$RUN_ID"
+        exit 0
+    
+    - name: Cleanup
+      if: always()
+      run: rm -f workflow_config.json
+    
+    - name: Summary
+      if: success()
+      run: |
+        echo ""
+        echo "========================================"
+        echo "DESPLIEGUE COMPLETADO"
+        echo "========================================"
+        echo ""
+        echo "Notebooks desplegados:"
+        echo "  - 1-Ddls-Medallion (DDL)"
+        echo "  - 2-Ingest-Coffee-Shop-Data (Bronze)"
+        echo "  - 3-Transform (Silver)"
+        echo "  - 4-Load (Gold)"
+        echo ""
+        echo "Workflow: $WORKFLOW_NAME"
+        echo "Cluster: CLUSTER COFFEE SHOP"
+        echo "Schedule: Diario 10:00 AM (Lima)"
+        echo "Notificaciones: lchaponant@gmail.com"
+        echo ""
+        echo "Pipeline ejecutado automáticamente"
+        echo "========================================"

@@ -3,7 +3,7 @@ name: Coffee Shop ETL - Databricks Deploy
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'proceso/**'
   workflow_dispatch:

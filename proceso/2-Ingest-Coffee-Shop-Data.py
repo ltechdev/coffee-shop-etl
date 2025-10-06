@@ -11,7 +11,7 @@ from pyspark.sql.types import *
 
 # Definición de constantes
 ruta = "abfss://coffeeshop@adlsdevluis25.dfs.core.windows.net/raw/coffe.csv"
-catalogo = "catalog_dev"
+catalogo = "catalog_prod"
 esquema = "bronze"
 tabla = "VENTA_CAFE"
 

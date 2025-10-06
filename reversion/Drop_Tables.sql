@@ -6,7 +6,7 @@
 
 -- MAGIC %python
 -- MAGIC dbutils.widgets.text("storage","abfss://lhcldata@adlssmartdata1504.dfs.core.windows.net")
--- MAGIC dbutils.widgets.text("catalogo","catalog_dev")
+-- MAGIC dbutils.widgets.text("catalogo","catalog_prod")
 
 -- COMMAND ----------
 
@@ -21,7 +21,7 @@
 -- COMMAND ----------
 
 -- DROP TABLES
-DROP TABLE IF EXISTS catalog_dev.bronze.VENTA_CAFE;
+DROP TABLE IF EXISTS catalog_prod.bronze.VENTA_CAFE;
 
 -- COMMAND ----------
 
@@ -39,9 +39,9 @@ DROP TABLE IF EXISTS catalog_dev.bronze.VENTA_CAFE;
 -- COMMAND ----------
 
 -- DROP TABLES
-DROP TABLE IF EXISTS catalog_dev.silver.VENTAS_LIMPIAS;
-DROP TABLE IF EXISTS catalog_dev.silver.CLIENTES_VALIDOS;
-DROP TABLE IF EXISTS catalog_dev.silver.DETALLE_PRODUCTOS;
+DROP TABLE IF EXISTS catalog_prod.silver.VENTAS_LIMPIAS;
+DROP TABLE IF EXISTS catalog_prod.silver.CLIENTES_VALIDOS;
+DROP TABLE IF EXISTS catalog_prod.silver.DETALLE_PRODUCTOS;
 
 -- COMMAND ----------
 
@@ -59,8 +59,8 @@ DROP TABLE IF EXISTS catalog_dev.silver.DETALLE_PRODUCTOS;
 -- COMMAND ----------
 
 -- DROP TABLES
-DROP TABLE IF EXISTS catalog_dev.golden.KPIS_VENTAS;
-DROP TABLE IF EXISTS catalog_dev.golden.SEGMENTOS_CLIENTES;
+DROP TABLE IF EXISTS catalog_prod.golden.KPIS_VENTAS;
+DROP TABLE IF EXISTS catalog_prod.golden.SEGMENTOS_CLIENTES;
 
 -- COMMAND ----------
 
@@ -77,8 +77,8 @@ DROP TABLE IF EXISTS catalog_dev.golden.SEGMENTOS_CLIENTES;
 -- COMMAND ----------
 
 -- DROP TABLES
-DROP TABLE IF EXISTS catalog_dev.exploratory.EXPERIMENTOS;
-DROP TABLE IF EXISTS catalog_dev.exploratory.PRUEBAS_MODELOS_EXT;
+DROP TABLE IF EXISTS catalog_prod.exploratory.EXPERIMENTOS;
+DROP TABLE IF EXISTS catalog_prod.exploratory.PRUEBAS_MODELOS_EXT;
 
 -- COMMAND ----------
 

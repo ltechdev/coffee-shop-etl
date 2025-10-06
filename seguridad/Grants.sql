@@ -4,8 +4,8 @@ GRANT USE CATALOG ON CATALOG demo_catalog TO `Admins`;
 
 -- COMMAND ----------
 
-GRANT USE SCHEMA ON SCHEMA catalog_dev.bronze TO `Dvelopers`;
-GRANT CREATE ON SCHEMA catalog_dev.bronze TO `Dvelopers`;
+GRANT USE SCHEMA ON SCHEMA catalog_prod.bronze TO `Dvelopers`;
+GRANT CREATE ON SCHEMA catalog_prod.bronze TO `Dvelopers`;
 
 -- COMMAND ----------
 

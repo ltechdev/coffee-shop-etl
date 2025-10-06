@@ -12,7 +12,7 @@ env:
   WORKFLOW_NAME: "CoffeeShopWFDeploy"
   PRODUCTION_PATH: "/production/coffee_shop"
   STORAGE_LOCATION: "abfss://coffeeshop@adlsdevluis25.dfs.core.windows.net"
-  CATALOG_NAME: "catalog_dev"
+  CATALOG_NAME: "catalog_prod"
 
 jobs:
   deploy-and-execute:

@@ -15,7 +15,7 @@ from pyspark.sql.types import *
 
 # COMMAND ----------
 
-catalogo = "catalog_dev"
+catalogo = "catalog_prod"
 esquema_origen = "silver"
 esquema_destino = "golden"
 

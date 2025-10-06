@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 env:
-  WORKFLOW_NAME: "CoffeeShopWFDeploy"
-  PRODUCTION_PATH: "/production/coffee_shop"
+  WORKFLOW_NAME: "CoffeeShopWFDeployProduction"
+  PRODUCTION_PATH: "/prod/coffee_shop"
   STORAGE_LOCATION: "abfss://coffeeshop@adlsdevluis25.dfs.core.windows.net"
   CATALOG_NAME: "catalog_prod"
 
